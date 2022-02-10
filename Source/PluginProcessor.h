@@ -55,15 +55,20 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+    
+    void updateCrossoverFrequency();
 
 private:
     //==============================================================================
+    juce::AudioProcessorValueTreeState parameters;
+    
     juce::AudioBuffer<float> sumBuffer;
-    float cutoffFrequency;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> crossoverFrequency, lfeLowPassFrequency;
+    float lowPassBoost;
     
     juce::OwnedArray<juce::OwnedArray<IIR::Filter<float>>> filterArrays;
     LinkwitzRileyFilter<float> sumLowPassFilter, lfeLowPassFilter;
-    
+        
     enum CHANNELS { L, R, C, LFE, LS, RS};
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BassicManagerAudioProcessor)

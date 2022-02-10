@@ -21,7 +21,25 @@ BassicManagerAudioProcessor::BassicManagerAudioProcessor()
                      #endif
                        ),
         sumBuffer(5, getSampleRate()),
-        cutoffFrequency(60)
+        crossoverFrequency(60.0f),
+        lfeLowPassFrequency(120.0f),
+        lowPassBoost(10.0f),
+        parameters (*this, nullptr, juce::Identifier ("APVTSTutorial"),
+                      {
+                            std::make_unique<juce::AudioParameterFloat> ("crossoverFrequency",
+                                                         "Crossover Frequency",
+                                                         20.0f,
+                                                         250.0f,
+                                                         60.0f),
+                            std::make_unique<juce::AudioParameterFloat> ("lfeLowPassFrequency",
+                                                                       "LFE Low Pass Frequency",
+                                                                       20.0f,
+                                                                       250.0f,
+                                                                       120.0f),
+                            std::make_unique<juce::AudioParameterBool> ("lfeBoost",
+                                                                      "LFE Boost",
+                                                                      false)
+                      })
 #endif
 {
     for(int i=0; i<5; i++)
@@ -105,26 +123,27 @@ void BassicManagerAudioProcessor::prepareToPlay (double sampleRate, int samplesP
     // initialisation that you need..
     ProcessSpec highPassSpec { sampleRate, static_cast<juce::uint32> (samplesPerBlock), 1 };
     ProcessSpec lowPassSpec { sampleRate, static_cast<juce::uint32> (samplesPerBlock), 1 };
-                                            
-    auto coefficientsArray = FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(cutoffFrequency, sampleRate, 1);
-            
+                                                        
     for(int i=0; i<5; i++){
         auto filterArray = filterArrays.getUnchecked(i);
         for(int j=0; j<8; j++)
         {
             auto filter = filterArray->getUnchecked(j);
-            filter->coefficients = *coefficientsArray[0];
             filter->prepare(highPassSpec);
         }
     }
     
     sumLowPassFilter.prepare(lowPassSpec);
-    sumLowPassFilter.setCutoffFrequency(60.0);
-    
+        
     lfeLowPassFilter.prepare(lowPassSpec);
-    lfeLowPassFilter.setCutoffFrequency(120.0);
     
     sumBuffer.setSize(1, samplesPerBlock);
+    
+    crossoverFrequency.reset(sampleRate, 0.001);
+    lfeLowPassFrequency.reset(sampleRate, 0.001);
+    
+    updateCrossoverFrequency();
+    lfeLowPassFilter.setCutoffFrequency(lfeLowPassFrequency.getNextValue());
 }
 
 void BassicManagerAudioProcessor::releaseResources()
@@ -157,6 +176,22 @@ bool BassicManagerAudioProcessor::isBusesLayoutSupported (const BusesLayout& lay
   #endif
 }
 #endif
+
+void BassicManagerAudioProcessor::updateCrossoverFrequency()
+{
+    auto coefficientsArray = FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(crossoverFrequency.getNextValue(), getSampleRate(), 1);
+            
+    for(int i=0; i<5; i++){
+        auto filterArray = filterArrays.getUnchecked(i);
+        for(int j=0; j<8; j++)
+        {
+            auto filter = filterArray->getUnchecked(j);
+            filter->coefficients = *coefficientsArray[0];
+        }
+    }
+    
+    sumLowPassFilter.setCutoffFrequency(crossoverFrequency.getNextValue());
+}
 
 void BassicManagerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
@@ -211,6 +246,18 @@ void BassicManagerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     buffer.applyGain(CHANNELS::LFE, 0, buffer.getNumSamples(), juce::Decibels::decibelsToGain(10));
     
     buffer.addFrom(CHANNELS::LFE, 0, sumBuffer, 0, 0, buffer.getNumSamples());
+        
+    lfeLowPassFrequency.setTargetValue(*parameters.getRawParameterValue("lfeLowPassFrequency"));
+    lfeLowPassFrequency.getNextValue();
+    
+    if(lfeLowPassFrequency.isSmoothing())
+        lfeLowPassFilter.setCutoffFrequency(lfeLowPassFrequency.getNextValue());
+    
+    crossoverFrequency.setTargetValue(*parameters.getRawParameterValue("crossoverFrequency"));
+    crossoverFrequency.getNextValue();
+    
+    if(crossoverFrequency.isSmoothing())
+        updateCrossoverFrequency();
 }
 
 //==============================================================================
@@ -231,12 +278,20 @@ void BassicManagerAudioProcessor::getStateInformation (juce::MemoryBlock& destDa
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    auto state = parameters.copyState();
+           std::unique_ptr<juce::XmlElement> xml (state.createXml());
+           copyXmlToBinary (*xml, destData);
 }
 
 void BassicManagerAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+     
+            if (xmlState.get() != nullptr)
+                if (xmlState->hasTagName (parameters.state.getType()))
+                    parameters.replaceState (juce::ValueTree::fromXml (*xmlState));
 }
 
 //==============================================================================
