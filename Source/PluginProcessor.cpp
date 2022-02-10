@@ -1,30 +1,48 @@
+/*
+  ==============================================================================
+
+    This file contains the basic framework code for a JUCE plugin processor.
+
+  ==============================================================================
+*/
+
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 //==============================================================================
-AudioPluginAudioProcessor::AudioPluginAudioProcessor()
+BassicManagerAudioProcessor::BassicManagerAudioProcessor()
+#ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
                       #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                       .withInput  ("Input",  juce::AudioChannelSet::create5point1(), true)
                       #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                       .withOutput ("Output", juce::AudioChannelSet::create5point1(), true)
                      #endif
-                       )
+                       ),
+        sumBuffer(5, getSampleRate()),
+        cutoffFrequency(60)
+#endif
 {
+    for(int i=0; i<5; i++)
+    {
+        filterArrays.add(new juce::OwnedArray<IIR::Filter<float>>);
+        for(int j=0; j<8; j++)
+            filterArrays[i]->add(new IIR::Filter<float>());
+    }
 }
 
-AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
-{
+BassicManagerAudioProcessor::~BassicManagerAudioProcessor()
+{        
 }
 
 //==============================================================================
-const juce::String AudioPluginAudioProcessor::getName() const
+const juce::String BassicManagerAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool AudioPluginAudioProcessor::acceptsMidi() const
+bool BassicManagerAudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -33,7 +51,7 @@ bool AudioPluginAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool AudioPluginAudioProcessor::producesMidi() const
+bool BassicManagerAudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -42,7 +60,7 @@ bool AudioPluginAudioProcessor::producesMidi() const
    #endif
 }
 
-bool AudioPluginAudioProcessor::isMidiEffect() const
+bool BassicManagerAudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -51,53 +69,72 @@ bool AudioPluginAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double AudioPluginAudioProcessor::getTailLengthSeconds() const
+double BassicManagerAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int AudioPluginAudioProcessor::getNumPrograms()
+int BassicManagerAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int AudioPluginAudioProcessor::getCurrentProgram()
+int BassicManagerAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void AudioPluginAudioProcessor::setCurrentProgram (int index)
+void BassicManagerAudioProcessor::setCurrentProgram (int index)
 {
-    juce::ignoreUnused (index);
 }
 
-const juce::String AudioPluginAudioProcessor::getProgramName (int index)
+const juce::String BassicManagerAudioProcessor::getProgramName (int index)
 {
-    juce::ignoreUnused (index);
     return {};
 }
 
-void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void BassicManagerAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
-    juce::ignoreUnused (index, newName);
 }
 
 //==============================================================================
-void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void BassicManagerAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    ProcessSpec highPassSpec { sampleRate, static_cast<juce::uint32> (samplesPerBlock), 1 };
+    ProcessSpec lowPassSpec { sampleRate, static_cast<juce::uint32> (samplesPerBlock), 1 };
+                                            
+    auto coefficientsArray = FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(cutoffFrequency, sampleRate, 1);
+            
+    for(int i=0; i<5; i++){
+        auto filterArray = filterArrays.getUnchecked(i);
+        for(int j=0; j<8; j++)
+        {
+            auto filter = filterArray->getUnchecked(j);
+            filter->coefficients = *coefficientsArray[0];
+            filter->prepare(highPassSpec);
+        }
+    }
+    
+    sumLowPassFilter.prepare(lowPassSpec);
+    sumLowPassFilter.setCutoffFrequency(60.0);
+    
+    lfeLowPassFilter.prepare(lowPassSpec);
+    lfeLowPassFilter.setCutoffFrequency(120.0);
+    
+    sumBuffer.setSize(1, samplesPerBlock);
 }
 
-void AudioPluginAudioProcessor::releaseResources()
+void BassicManagerAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
-bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+#ifndef JucePlugin_PreferredChannelConfigurations
+bool BassicManagerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -105,8 +142,9 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
   #else
     // This is the place where you check if the layout is supported.
     // In this template code we only support mono or stereo.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    // Some plugin hosts, such as certain GarageBand versions, will only
+    // load plugins that support stereo bus layouts.
+    if (layouts.getMainInputChannels() <= 6)
         return false;
 
     // This checks if the input layout matches the output layout
@@ -118,12 +156,10 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
     return true;
   #endif
 }
+#endif
 
-void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
-                                              juce::MidiBuffer& midiMessages)
+void BassicManagerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
-
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -136,51 +172,76 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
+    
+    // Sum the full range channels to a new buffer and lowPass
+    
+    sumBuffer.copyFrom(0, 0, buffer, CHANNELS::L, 0, buffer.getNumSamples());
+    sumBuffer.addFrom(0, 0, buffer, CHANNELS::R, 0, buffer.getNumSamples());
+    sumBuffer.addFrom(0, 0, buffer, CHANNELS::C, 0, buffer.getNumSamples());
+    sumBuffer.addFrom(0, 0, buffer, CHANNELS::LS, 0, buffer.getNumSamples());
+    sumBuffer.addFrom(0, 0, buffer, CHANNELS::RS, 0, buffer.getNumSamples());
+    
+    AudioBlock<float> sumBufferBlock(sumBuffer);
+    ProcessContextReplacing<float> sumBufferContext(sumBufferBlock);
+    sumLowPassFilter.process(sumBufferContext);
+    
+    // Replace the full range output high-passed
+    
+    AudioBlock<float> block(buffer);
+        
+    for(int i=0; i<5; i++){
+        auto channelBlock = block.getSingleChannelBlock(i);
+        ProcessContextReplacing<float> context(channelBlock);
+        auto filterArray = filterArrays.getUnchecked(i);
+        for(int j=0; j<8; j++)
+        {
+            auto filter = filterArray->getUnchecked(j);
+            filter->process(context);
+        }
     }
+    
+    // Replace the LFE channel with its low-passed version
+    // apply +10dB of gain
+    // then add the summed low pass content
+    
+    auto channelBlock = block.getSingleChannelBlock(CHANNELS::LFE);
+    ProcessContextReplacing<float> lfeLowPassContext(channelBlock);
+    lfeLowPassFilter.process(lfeLowPassContext);
+    
+    buffer.applyGain(CHANNELS::LFE, 0, buffer.getNumSamples(), juce::Decibels::decibelsToGain(10));
+    
+    buffer.addFrom(CHANNELS::LFE, 0, sumBuffer, 0, 0, buffer.getNumSamples());
 }
 
 //==============================================================================
-bool AudioPluginAudioProcessor::hasEditor() const
+bool BassicManagerAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
+juce::AudioProcessorEditor* BassicManagerAudioProcessor::createEditor()
 {
-    return new AudioPluginAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
+//    return new BassicManagerAudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void BassicManagerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
 }
 
-void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void BassicManagerAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
 }
 
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new AudioPluginAudioProcessor();
+    return new BassicManagerAudioProcessor();
 }
