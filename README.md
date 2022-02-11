@@ -1,7 +1,7 @@
 # BassicManager
 
 ![BassicManager](ui.png)\
-[![](https://github.com/sudara/pamplejuce/workflows/CMake/badge.svg)](https://github.com/carthach/BassicManager/actions)
+[![](https://github.com/carthach/BassicManager/workflows/CMake/badge.svg)](https://github.com/carthach/BassicManager/actions)
 
 BassicManager is an open source plugin for bass management of X.1 surround sound projects. Stick this on your 5.1 master bus to hear how your mix will sound on bass management systems. It is important to note that this is a MONITORING TOOL. Make sure to disable or bypass the plugin when you are rendering and mixing down.
 
