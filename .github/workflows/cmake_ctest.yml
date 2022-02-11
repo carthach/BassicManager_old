@@ -1,6 +1,10 @@
 name: CMake
 
 on: [push]
+  branches:
+    - main
+  paths-ignore:
+    - '**/README.md'
 
 env:
   PROJECT_NAME: BassicManager # Must match the JUCE project name from juce_add_plugin
