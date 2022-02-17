@@ -142,7 +142,7 @@ void BassicManagerAudioProcessor::prepareToPlay (double sampleRate, int samplesP
     crossoverFrequency.reset(sampleRate, 0.001);
     lfeLowPassFrequency.reset(sampleRate, 0.001);
     
-    updateCrossoverFrequency();
+    updateCrossoverFrequency(sampleRate);
     lfeLowPassFilter.setCutoffFrequency(lfeLowPassFrequency.getNextValue());
 }
 
@@ -177,9 +177,9 @@ bool BassicManagerAudioProcessor::isBusesLayoutSupported (const BusesLayout& lay
 }
 #endif
 
-void BassicManagerAudioProcessor::updateCrossoverFrequency()
+void BassicManagerAudioProcessor::updateCrossoverFrequency(double sampleRate)
 {
-    auto coefficientsArray = FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(crossoverFrequency.getNextValue(), getSampleRate(), 1);
+    auto coefficientsArray = FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(crossoverFrequency.getNextValue(), sampleRate, 1);
             
     for(int i=0; i<5; i++){
         auto filterArray = filterArrays.getUnchecked(i);
@@ -223,16 +223,22 @@ void BassicManagerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     // Replace the full range output high-passed
     
     AudioBlock<float> block(buffer);
+    
+    int filterCounter = 0;
         
-    for(int i=0; i<5; i++){
+    for(int i : {L, R, C, LS, RS}){
+        
         auto channelBlock = block.getSingleChannelBlock(i);
+        
         ProcessContextReplacing<float> context(channelBlock);
-        auto filterArray = filterArrays.getUnchecked(i);
+        auto filterArray = filterArrays.getUnchecked(filterCounter);
         for(int j=0; j<8; j++)
         {
             auto filter = filterArray->getUnchecked(j);
             filter->process(context);
         }
+        
+        filterCounter++;
     }
     
     // Replace the LFE channel with its low-passed version
@@ -257,7 +263,7 @@ void BassicManagerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     crossoverFrequency.getNextValue();
     
     if(crossoverFrequency.isSmoothing())
-        updateCrossoverFrequency();
+        updateCrossoverFrequency(getSampleRate());
 }
 
 //==============================================================================

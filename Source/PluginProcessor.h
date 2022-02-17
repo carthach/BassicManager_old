@@ -56,7 +56,9 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
     
-    void updateCrossoverFrequency();
+    void updateCrossoverFrequency(double sampleRate);
+    
+    enum CHANNELS { L, R, C, LFE, LS, RS};
 
 private:
     //==============================================================================
@@ -69,7 +71,7 @@ private:
     juce::OwnedArray<juce::OwnedArray<IIR::Filter<float>>> filterArrays;
     LinkwitzRileyFilter<float> sumLowPassFilter, lfeLowPassFilter;
         
-    enum CHANNELS { L, R, C, LFE, LS, RS};
+    
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BassicManagerAudioProcessor)
 };
