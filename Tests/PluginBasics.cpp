@@ -15,7 +15,7 @@ public:
     void prepareToPlay(float frequencyIn)
     {
         frequency = frequencyIn;
-        angleIncrement = frequency *  M_PI * 2.0 / sampleRate;
+        angleIncrement = frequency *  juce::MathConstants<float>::twoPi / sampleRate;
     }
     
     void process(juce::AudioBuffer<float> & block, int channel)
@@ -26,7 +26,7 @@ public:
         {
             angle += angleIncrement;
             
-            if(angle >= (M_PI * 2.0))
+            if(angle >= juce::MathConstants<float>::twoPi)
                 angle = 0;
             
             *samples++ = std::sin(angle);
