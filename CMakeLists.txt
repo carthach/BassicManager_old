@@ -9,7 +9,7 @@ set(PROJECT_NAME "BassicManager")
 
 # Set the plugin formats you'll be building here.
 # Valid formats: AAX Unity VST AU AUv3 Standalone
-set(FORMATS AU VST3 AUv3)
+set(FORMATS AU VST3 AUv3 Standalone)
 
 # Reads in VERSION file and sticks in it CURRENT_VERSION variable
 file(READ VERSION CURRENT_VERSION)
@@ -67,7 +67,9 @@ set(SourceFiles
     Source/PluginEditor.h
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
-    Source/PluginProcessor.cpp)
+    Source/PluginProcessor.cpp
+    Source/SimpleMeter.h
+    )
 target_sources("${PROJECT_NAME}" PRIVATE ${SourceFiles})
 
 # No, we don't want our source buried in extra nested folders
