@@ -24,7 +24,7 @@ Download the artifacts from [Github Actions](https://github.com/carthach/BassicM
 I refuse to shell out 100 euro to Apple for codesigning. You might need to clear the quarantine attributes after downloading on Mac:
 
 ```sh
-sudo xattr -r -d com.apple.quarantine
+sudo xattr -r -d com.apple.quarantine /path/to/plugin.vst3/
 ```
 
 
