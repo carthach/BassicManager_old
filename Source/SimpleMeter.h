@@ -18,13 +18,15 @@ public:
 
         auto area = g.getClipBounds();
         g.setColour (getLookAndFeel().findColour (Slider::thumbColourId));
-        g.fillRoundedRectangle (area.toFloat(), 6.0);
+//        g.fillRoundedRectangle (area.toFloat(), 6.0);
+        g.fillRect(area.toFloat());
 
         auto unfilledHeight = area.getHeight() * (1.0 - level);
         g.reduceClipRegion (area.getX(), area.getY(),
                             area.getWidth(), (int) unfilledHeight);
         g.setColour (getLookAndFeel().findColour (Slider::trackColourId));
-        g.fillRoundedRectangle (area.toFloat(), 6.0);
+//        g.fillRoundedRectangle (area.toFloat(), 6.0);
+        g.fillRect(area.toFloat());
     }
 
     //==============================================================================
