@@ -21,6 +21,13 @@ For more information check [Wikipedia](https://en.wikipedia.org/wiki/Bass_manage
 
 Download the artifacts from [Github Actions](https://github.com/carthach/BassicManager/actions)
 
+I refuse to shell out 100 euro to Apple for codesigning. You might need to clear the quarantine attributes after downloading on Mac:
+
+```sh
+sudo xattr -r -d com.apple.quarantine /path/to/plugin.vst3/
+```
+
+
 ## Licence
 
 The code is GPL, if you want to use it commercially contact me.
