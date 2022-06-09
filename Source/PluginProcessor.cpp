@@ -42,6 +42,7 @@ BassicManagerAudioProcessor::BassicManagerAudioProcessor()
                       })
 #endif
 {
+    // Setup satellite speaker filters
     for(int i=0; i<5; i++)
     {
         filterArrays.add(new juce::OwnedArray<IIR::Filter<float>>);
